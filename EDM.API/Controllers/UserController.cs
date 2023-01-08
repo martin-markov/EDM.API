@@ -1,6 +1,7 @@
 ﻿using EDM.Data;
 using EDM.Data.Models;
 using EDM.Models;
+using EDM.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,75 +14,72 @@ namespace EDM.API.Controllers
     [Authorize]
     public class UserController : ControllerBase
     {
-        private readonly ApiDbContext dbContext;
+        private readonly IUserService userService;
 
-        public UserController(ApiDbContext dbContext)
+        public UserController(IUserService userService)
         {
-            this.dbContext = dbContext;
+            this.userService = userService;
         }
 
         [HttpGet("GetAll")]
         public IActionResult GetAll()
         {
-            return Ok(dbContext.Users.ToList());
+            var users = this.userService.GetAll();
+            return Ok(users);
         }
 
-        [HttpGet("Get/{userId}")]
-        public IActionResult GetById(int userId)
+        [HttpGet("Get/{userIdentifier}")]
+        public IActionResult GetById(Guid userIdentifier)
         {
-            var user = this.dbContext.Users.FirstOrDefault(x => x.UserId == userId);
+            var user = this.userService.GetByGuid(userIdentifier);
             if (user is null)
             {
-                return NotFound();
+                return NotFound("User does not exists");
             }
             return Ok(user);
         }
 
         [HttpPost("Create")]
-        public IActionResult Create([FromBody] UserDataModel user)
+        public IActionResult Create([FromBody] UserDTO user)
         {
-            var dbUser = new User()
+            var validationResult = this.userService.Validate(user);
+            if (validationResult.IsValid)
             {
-                UserName = user.UserName,
-                Password = user.Password,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                Email = user.Email,
-                Phone = user.Phone,
-                CreatedDate = DateTime.UtcNow,
-                CreatedBy = 1
-            };
-            this.dbContext.Users.Add(dbUser);
-            this.dbContext.SaveChanges();
-
-            return Ok(dbUser);
-        }
-
-        [HttpPut("Update/{userId}")]
-        public IActionResult Update(int userId, [FromBody] UserDataModel user)
-        {
-            var dbUser = this.dbContext.Users.First(x => x.UserId == userId);
-            dbUser.FirstName = user.FirstName;
-            dbUser.LastName = user.LastName;
-            dbUser.Email = user.Email;
-            dbUser.Phone = user.Phone;
-            dbUser.LastModifiedDate = DateTime.UtcNow;
-
-            this.dbContext.SaveChanges();
-
-            return Ok();
-        }
-
-        [HttpDelete("Delete/{userId}")]
-        public IActionResult Delete(int userId)
-        {
-            var dbUser = this.dbContext.Users.FirstOrDefault(x => x.UserId == userId);
-            if (dbUser is null)
-            {
-                return NotFound();
+                var createdUser = this.userService.Create(user);
+                return Ok(createdUser);
             }
 
-            this.dbContext.Remove(dbUser);
+            return BadRequest(validationResult.Errors);
+        }
+
+        [HttpPut("Update/{userIdentifier}")]
+        public IActionResult Update(Guid userIdentifier, [FromBody] UserDTO user)
+        {
+            var dbUser = this.userService.GetByGuid(userIdentifier);
+            if (dbUser is null)
+            {
+                return NotFound("User does not exists");
+            }
+            ValidationResult validationResult = this.userService.Validate(user);
+            if (validationResult.IsValid)
+            {
+                var udpatedUser = this.userService.Update(dbUser.UserId, user);
+                return Ok(udpatedUser);
+            }
+
+            return BadRequest(validationResult.Errors);
+        }
+
+        [HttpDelete("Delete/{userIdentifier}")]
+        public IActionResult Delete(Guid userIdentifier)
+        {
+            var dbUser = this.userService.GetByGuid(userIdentifier);
+            if (dbUser is null)
+            {
+                return NotFound("User does not exists");
+            }
+
+            this.userService.Delete(dbUser.UserId);
             return Ok();
         }
     }

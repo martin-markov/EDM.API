@@ -1,9 +1,11 @@
+using AutoMapper;
+using EDM.API;
 using EDM.Data;
-
+using EDM.Models;
+using EDM.Services;
+using EDM.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -60,9 +62,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidateIssuerSigningKey = true,
         ValidIssuer = configuration["Jwt:Issuer"],
         ValidAudience = configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!))
     };
 });
+var mapperConfig = new MapperConfiguration(mc =>
+{
+    mc.AddProfile(new MappingProfile());
+});
+
+IMapper mapper = mapperConfig.CreateMapper();
+builder.Services.AddSingleton(mapper);
+builder.Services.AddTransient(typeof(IUserService), typeof(UserService));
+builder.Services.AddTransient(typeof(ITokenProvider), typeof(JwtTokenProvider));
+
+builder.Services.AddTransient(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 var app = builder.Build();
 
